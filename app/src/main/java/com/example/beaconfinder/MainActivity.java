@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
 
                 queue = Volley.newRequestQueue(MainActivity.this);
                 url = "http://10.0.2.2";
-                stringRequest = new StringRequest(Request.Method.PUT, url,
+                stringRequest = new StringRequest(Request.Method.GET, url,
                     (response) -> {
                         System.out.println(response);
                         tv.setText(response.toString());
