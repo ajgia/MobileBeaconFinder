@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
                 StringRequest stringRequest;
 
                 queue = Volley.newRequestQueue(MainActivity.this);
-                url = "http://localhost:7123";
+                url = "http://10.0.2.2";
                 stringRequest = new StringRequest(Request.Method.PUT, url,
                     (response) -> {
                         System.out.println(response);
