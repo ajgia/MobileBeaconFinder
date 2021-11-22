@@ -39,22 +39,30 @@ public class MainActivity extends AppCompatActivity {
 
     int ACCESS_COARSE_LOCATION_PERMISSION_CODE = 1337;
     int ACCESS_FINE_LOCATION_PERMISSION_CODE = 1338;
+    int INTERVAL = 60000; // 1 minute
+    int FASTEST_INTERVAL = 5000; // 5 seconds
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Check and request permissions
         checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, ACCESS_COARSE_LOCATION_PERMISSION_CODE);
         checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, ACCESS_FINE_LOCATION_PERMISSION_CODE);
 
+        // A Location Manager, of a sorts
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        // Set parameters and callback of request
         LocationRequest mLocationRequest = LocationRequest.create();
-        mLocationRequest.setInterval(60000);
-        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setInterval(INTERVAL);
+        mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         LocationCallback mLocationCallback = new LocationCallback() {
+
+            // Callback for getting locationResult
+            // On valid location, makes PUT request to server
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 if (locationResult == null) {
@@ -74,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
         locationTV = findViewById(R.id.locationTV);
         putBtn = findViewById(R.id.putBtn);
 
+        // PUT Button's onClickListener triggers the location request, which triggers hitting the server when it returns
         putBtn.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -98,8 +107,12 @@ public class MainActivity extends AppCompatActivity {
         StringRequest stringRequest;
 
         queue = Volley.newRequestQueue(MainActivity.this);
+
+        // 10.0.2.2 is the alias for localhost of the actual device (not the emulator)
+        // TODO: connect to the non-aliased url
         url = "http://10.0.2.2";
 
+        // TODO: format this request as a valid PUT with location
         stringRequest = new StringRequest(Request.Method.GET, url,
                 (response) -> {
                     System.out.println(response);
