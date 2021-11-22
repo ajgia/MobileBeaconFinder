@@ -11,11 +11,13 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -28,6 +30,12 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     Button putBtn;
@@ -72,7 +80,10 @@ public class MainActivity extends AppCompatActivity {
                     if (location != null) {
                         String locationDisplay = location.getLatitude() + ", " + location.getLongitude();
                         locationTV.setText(locationDisplay);
-                        makePUTRequest(location);
+                        try  {makePUTRequest(location);}
+                        catch (Exception e) {
+
+                        }
                     }
                 }
             }
@@ -101,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
      * Make HTTP PUT Request to server
      * @param location
      */
-    void makePUTRequest(Location location) {
+    void makePUTRequest(Location location) throws AuthFailureError {
         RequestQueue queue;
         String url;
         StringRequest stringRequest;
@@ -112,8 +123,7 @@ public class MainActivity extends AppCompatActivity {
         // TODO: connect to the non-aliased url
         url = "http://10.0.2.2";
 
-        // TODO: format this request as a valid PUT with location
-        stringRequest = new StringRequest(Request.Method.GET, url,
+        stringRequest = new StringRequest(Request.Method.PUT, url,
                 (response) -> {
                     System.out.println(response);
                     serverTV.setText(response.toString());
@@ -122,10 +132,43 @@ public class MainActivity extends AppCompatActivity {
                     System.out.println(error);
                     serverTV.setText(error.toString());
                 }
-        );
+        ) {
+            @Override
+            public Map<String, String> getHeaders()
+            {
+                Map<String, String> headers = new HashMap<String, String>();
+                headers.put("Content-Type", "application/json");
+                //or try with this:
+                //headers.put("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+                // or content-type text
+                return headers;
+            }
+
+            @Override
+            protected Map<String, String> getParams() {
+                Date currentTime = Calendar.getInstance().getTime();
+
+                Map<String, String> params = new HashMap<String, String>();
+
+                // Params get put in key-value format.
+                params.put("latitude", String.valueOf(location.getLatitude())); // Body Format comes out as : password=tttt&username=tester&token=blah&
+                params.put("longitude", String.valueOf(location.getLongitude()));
+                params.put("maj", "majornumber");
+                params.put("min", "minornumber");
+                params.put("timestamp", currentTime.toString());
+                return params;
+            }
+        };
+
+        // TODO: remove debug variables
+        byte[] bodyBytes = stringRequest.getBody();
+        String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8); // for UTF-8 encoding
+        Map<String, String> headers = stringRequest.getHeaders();
+        String headersStr = headers.toString();
+
         queue.add(stringRequest);
 
-        //display toast
+        // display toast
         Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
     }
 
