@@ -22,12 +22,18 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 public class MainActivity extends AppCompatActivity {
     Button putBtn;
-    TextView tv;
+    TextView serverTV;
+    TextView locationTV;
     LocationManager locationManager;
     Location location;
+    FusedLocationProviderClient fusedLocationClient;
+
     int ACCESS_COARSE_LOCATION_PERMISSION_CODE = 1337;
     int ACCESS_FINE_LOCATION_PERMISSION_CODE = 1338;
 
@@ -38,39 +44,63 @@ public class MainActivity extends AppCompatActivity {
 
         checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, ACCESS_COARSE_LOCATION_PERMISSION_CODE);
         checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, ACCESS_FINE_LOCATION_PERMISSION_CODE);
+
         locationManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
 
-        tv = findViewById(R.id.tv);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        serverTV = findViewById(R.id.serverTV);
+        locationTV = findViewById(R.id.locationTV);
         putBtn = findViewById(R.id.putBtn);
 
         putBtn.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View v) {
-                // make http PUT request to server
-                RequestQueue queue;
-                String url;
-                StringRequest stringRequest;
+                try {
+                    fusedLocationClient.getLastLocation().addOnSuccessListener(MainActivity.this, new OnSuccessListener<Location>() {
+                        @Override
+                        public void onSuccess(Location location) {
+                            if (location != null) {
+                                locationTV.setText(String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()));
+                                makePUTRequest(location);
+                            }
+                        } // onSuccess
+                    }); // fusedLocationClient
+                } // try
+                catch (SecurityException e) {
+                    System.out.println("security exception");
+                }
+            } // onClick
+        }); // setOnClickListener
+    } // onCreate
 
-                queue = Volley.newRequestQueue(MainActivity.this);
-                url = "http://10.0.2.2";
-                stringRequest = new StringRequest(Request.Method.GET, url,
-                    (response) -> {
-                        System.out.println(response);
-                        tv.setText(response.toString());
-                    },
-                    (error) -> {
-                        System.out.println(error);
-                        tv.setText(error.toString());
-                    }
-                );
-                queue.add(stringRequest);
+    /**
+     * Make HTTP PUT Request to server
+     * @param location
+     */
+    void makePUTRequest(Location location) {
+        RequestQueue queue;
+        String url;
+        StringRequest stringRequest;
 
+        queue = Volley.newRequestQueue(MainActivity.this);
+        url = "http://10.0.2.2";
 
-                //display toast
-                Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
-            }
-        });
+        stringRequest = new StringRequest(Request.Method.GET, url,
+                (response) -> {
+                    System.out.println(response);
+                    serverTV.setText(response.toString());
+                },
+                (error) -> {
+                    System.out.println(error);
+                    serverTV.setText(error.toString());
+                }
+        );
+        queue.add(stringRequest);
+
+        //display toast
+        Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
     }
 
     // Function to check and request permission.

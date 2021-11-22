@@ -11,7 +11,11 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/tv" />
+        android:id="@+id/locationTV" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/serverTV" />
 
     <Button
         android:layout_width="wrap_content"
