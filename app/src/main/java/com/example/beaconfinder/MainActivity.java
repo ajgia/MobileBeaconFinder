@@ -23,6 +23,9 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
 
@@ -45,9 +48,27 @@ public class MainActivity extends AppCompatActivity {
         checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, ACCESS_COARSE_LOCATION_PERMISSION_CODE);
         checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, ACCESS_FINE_LOCATION_PERMISSION_CODE);
 
-        locationManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        LocationRequest mLocationRequest = LocationRequest.create();
+        mLocationRequest.setInterval(60000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        LocationCallback mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                if (locationResult == null) {
+                    return;
+                }
+                for (Location location : locationResult.getLocations()) {
+                    if (location != null) {
+                        String locationDisplay = location.getLatitude() + ", " + location.getLongitude();
+                        locationTV.setText(locationDisplay);
+                        makePUTRequest(location);
+                    }
+                }
+            }
+        };
 
         serverTV = findViewById(R.id.serverTV);
         locationTV = findViewById(R.id.locationTV);
@@ -58,16 +79,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 try {
-                    fusedLocationClient.getLastLocation().addOnSuccessListener(MainActivity.this, new OnSuccessListener<Location>() {
-                        @Override
-                        public void onSuccess(Location location) {
-                            if (location != null) {
-                                locationTV.setText(String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()));
-                                makePUTRequest(location);
-                            }
-                        } // onSuccess
-                    }); // fusedLocationClient
-                } // try
+                    fusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null);
+                }
                 catch (SecurityException e) {
                     System.out.println("security exception");
                 }
