@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Observer;
 
 import android.Manifest;
 import android.content.Context;
@@ -31,29 +32,81 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
 
+import org.altbeacon.beacon.BeaconManager;
+import org.altbeacon.beacon.BeaconParser;
+import org.altbeacon.beacon.Identifier;
+import org.altbeacon.beacon.MonitorNotifier;
+import org.altbeacon.beacon.Region;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity {
+/**
+ * Does beacon detection and displays a PUT button that sends an HTTP PUT request to a server upon pressing,
+ * containing detected beacon details, current lat/lng, and timestamp
+ */
+public class MainActivity extends AppCompatActivity implements MonitorNotifier {
+    /**
+     * UI elements
+      */
     Button putBtn;
+    TextView beaconTV;
     TextView serverTV;
     TextView locationTV;
-    LocationManager locationManager;
-    Location location;
-    FusedLocationProviderClient fusedLocationClient;
 
+    /**
+     * Android location manager. Unused in favor of Fused Location Provider Client
+      */
+    LocationManager locationManager;
+    /**
+     * A stored location
+      */
+    Location location;
+    /**
+     * Google's FusedLocationProviderClient. Used to get location
+     * May need to specify it to use high accuracy provider
+     */
+    FusedLocationProviderClient fusedLocationClient;
+    /**
+     * AltBeacon's beacon manager
+     */
+    BeaconManager beaconManager;
+    /**
+     * True if inside a region
+     */
+    boolean insideRegion = false;
+    /**
+     * Desired region. Detect beacons if matching characteristics of this region
+     */
+    Region region;
+
+
+    /**
+     * Coarse location permission code. arbitrary number. used to distinguish between permission codes
+     */
     int ACCESS_COARSE_LOCATION_PERMISSION_CODE = 1337;
+    /**
+     * Fine location permission code. arbitrary number. used to distinguish between permission codes
+     */
     int ACCESS_FINE_LOCATION_PERMISSION_CODE = 1338;
+    /**
+     * Preferred location update interval
+     */
     int INTERVAL = 60000; // 1 minute
+    /**
+     * Fastest location update interval the app can handle
+     */
     int FASTEST_INTERVAL = 5000; // 5 seconds
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        setupBeaconManagement();
 
         // Check and request permissions
         checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, ACCESS_COARSE_LOCATION_PERMISSION_CODE);
@@ -62,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
         // A Location Manager, of a sorts
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Set parameters and callback of request
+        // Set parameters and callback of location request
         LocationRequest mLocationRequest = LocationRequest.create();
         mLocationRequest.setInterval(INTERVAL);
         mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
@@ -71,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
 
             // Callback for getting locationResult
             // On valid location, makes PUT request to server
+            // We are now entering callback hell
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 if (locationResult == null) {
@@ -82,13 +136,14 @@ public class MainActivity extends AppCompatActivity {
                         locationTV.setText(locationDisplay);
                         try  {makePUTRequest(location);}
                         catch (Exception e) {
-
+                            Log.e("PUT", e.toString());
                         }
                     }
                 }
             }
         };
 
+        beaconTV = findViewById(R.id.beaconTV);
         serverTV = findViewById(R.id.serverTV);
         locationTV = findViewById(R.id.locationTV);
         putBtn = findViewById(R.id.putBtn);
@@ -107,6 +162,38 @@ public class MainActivity extends AppCompatActivity {
             } // onClick
         }); // setOnClickListener
     } // onCreate
+
+    private void setupBeaconManagement() {
+        // set up beaconManager
+        beaconManager = BeaconManager.getInstanceForApplication(this);
+        beaconManager.getBeaconParsers().clear();
+        beaconManager.getBeaconParsers().add(new BeaconParser().
+                setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
+
+        // D'arcy's UUID
+        region = new Region("backgroundRegion",
+                Identifier.parse("C6C4C829-4FD9-4762-837C-DA24C665015A"), null, null);
+
+
+        // sets verbose logging on
+        BeaconManager.setDebug(true);
+
+        // Set up a Live Data observer so this Activity can get monitoring callbacks
+        // observer will be called each time the monitored regionState changes (inside vs. outside region)
+        beaconManager.getRegionViewModel(region).getRegionState().observe(this, new Observer<Integer>() {
+            @Override
+            public void onChanged(Integer integer) {
+                Log.d("beacon observer", "regionState change");
+            }
+        });
+        beaconManager.startRangingBeacons(region);
+
+
+        // If you wish to test beacon detection in the Android Emulator, you can use code like this:
+        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
+        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
+
+    }
 
     /**
      * Make HTTP PUT Request to server
@@ -185,9 +272,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // This function is called when the user accepts or decline the permission.
-    // Request Code is used to check which permission called this function.
-    // This request code is provided when the user is prompt for permission.
+    /** This function is called when the user accepts or decline the permission.
+     *  Request Code is used to check which permission called this function.
+     * This request code is provided when the user is prompt for permission.
+    */
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String[] permissions,
@@ -213,5 +301,33 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, "Fine Location Permission Denied", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    @Override
+    public void didEnterRegion(Region region) {
+        Log.d("Region callback", "did enter region");
+
+//        if (region)
+//        // clear list of seen beacons
+//        insideRegion = true;
+//        sendNotification();
+        // start ranging
+    }
+
+    private void sendNotification() {
+        Toast.makeText(MainActivity.this, "Region entered", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void didExitRegion(Region region) {
+//        beaconManager.stopRangingBeaconsInRegion(region);
+        // clear list
+        // stop ranging
+
+    }
+
+    @Override
+    public void didDetermineStateForRegion(int state, Region region) {
+
     }
 }
