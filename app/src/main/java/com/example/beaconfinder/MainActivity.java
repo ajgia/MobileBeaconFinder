@@ -237,12 +237,8 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
 
                 Map<String, String> params = new HashMap<String, String>();
 
-                // Params get put in key-value format.
-                params.put("latitude", String.valueOf(location.getLatitude())); // Body Format comes out as : password=tttt&username=tester&token=blah&
-                params.put("longitude", String.valueOf(location.getLongitude()));
-                params.put("maj", "majornumber");
-                params.put("min", "minornumber");
-                params.put("timestamp", currentTime.toString());
+                params.put("key", "9-9"); // TODO: actually construct this with real beacon data. maj-min
+                params.put("val", String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()) + ", " + currentTime.toString());
                 return params;
             }
         };
