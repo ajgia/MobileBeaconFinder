@@ -142,7 +142,9 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
                     if (location != null) {
                         String locationDisplay = location.getLatitude() + ", " + location.getLongitude();
                         locationTV.setText(locationDisplay);
-                        try  {makePUTRequest(location);}
+                        try  {
+                            sendRequestPerBeacon(location);
+                        }
                         catch (Exception e) {
                             Log.e("PUT", e.toString());
                         }
@@ -170,6 +172,16 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
             } // onClick
         }); // setOnClickListener
     } // onCreate
+
+    private void sendRequestPerBeacon(Location location) {
+        for (Beacon beacon : beaconList) {
+            try {
+                makePUTRequest(location, beacon);
+            } catch (Exception e) {
+                Log.e("PUT", e.toString());
+            }
+        }
+    }
 
     @Override
     public void didEnterRegion(Region region) {
@@ -229,15 +241,13 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
         beaconManager.startMonitoring(region);
         beaconManager.addRangeNotifier(this);
 
-
-
     }
 
     /**
      * Make HTTP PUT Request to server
      * @param location
      */
-    void makePUTRequest(Location location) throws AuthFailureError {
+    void makePUTRequest(Location location, Beacon beacon) throws AuthFailureError {
         RequestQueue queue;
         String url;
         StringRequest stringRequest;
@@ -248,42 +258,41 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
         // TODO: connect to the non-aliased url
         url = "http://10.0.2.2";
 
-        // TODO: fix this loop so it does send all beacons
-        for (Beacon b: beaconList) {
-            stringRequest = new StringRequest(Request.Method.PUT, url,
-                    (response) -> {
-                        System.out.println(response);
-                        serverTV.setText(response.toString());
-                    },
-                    (error) -> {
-                        System.out.println(error);
-                        serverTV.setText(error.toString());
-                    }
-            ) {
-                @Override
-                public Map<String, String> getHeaders()
-                {
-                    Map<String, String> headers = new HashMap<String, String>();
-                    headers.put("Content-Type", "application/json");
-                    //or try with this:
-                    //headers.put("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-                    // or content-type text
-                    return headers;
+        stringRequest = new StringRequest(Request.Method.PUT, url,
+                (response) -> {
+                    System.out.println(response);
+                    serverTV.setText(response.toString());
+                },
+                (error) -> {
+                    System.out.println(error);
+                    serverTV.setText(error.toString());
                 }
+        ) {
+            @Override
+            public Map<String, String> getHeaders()
+            {
+                Map<String, String> headers = new HashMap<String, String>();
+                headers.put("Content-Type", "application/json");
+                //or try with this:
+                //headers.put("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+                // or content-type text
+                return headers;
+            }
 
-                @Override
-                protected Map<String, String> getParams() {
-                    Date currentTime = Calendar.getInstance().getTime();
+            @Override
+            protected Map<String, String> getParams() {
+                Date currentTime = Calendar.getInstance().getTime();
 
-                    Map<String, String> params = new HashMap<String, String>();
-                    // resulting format is: key=someKey&val=someVal&
-                    params.put("key", b.getId2().toString() + "-" + b.getId3().toString());
-                    params.put("val", String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()) + ", " + currentTime.toString());
-                    return params;
-                }
-            };
-            queue.add(stringRequest);
-        }
+                Map<String, String> params = new HashMap<String, String>();
+                // resulting format is: key=someKey&val=someVal&
+                params.put("key", beacon.getId2().toString() + "-" + beacon.getId3().toString());
+                params.put("val", String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()) + ", " + currentTime.toString());
+                return params;
+            }
+        };
+
+        queue.add(stringRequest);
+
 
         // TODO: remove debug variables
 //        byte[] bodyBytes = stringRequest.getBody();
@@ -343,12 +352,11 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
     @Override
     public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
-        for (Beacon b : beacons) {
-            if ( !(beaconList.contains(b)) ) {
-                beaconList.add(b);
-            }
-        }
-        for (Beacon b : beaconList)
+        beaconList = (ArrayList<Beacon>) beacons;
+        beaconTV.setText("");
+        for (Beacon b : beaconList) {
+            beaconTV.append(b.getId2().toString() + "-" + b.getId3().toString() + "\n");
             Log.d("BeaconList", b.getId1() + " " + b.getId2() + " " + b.getId3());
+        }
     }
 }
