@@ -32,14 +32,18 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
 
+import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.Identifier;
 import org.altbeacon.beacon.MonitorNotifier;
+import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,7 +52,7 @@ import java.util.Map;
  * Does beacon detection and displays a PUT button that sends an HTTP PUT request to a server upon pressing,
  * containing detected beacon details, current lat/lng, and timestamp
  */
-public class MainActivity extends AppCompatActivity implements MonitorNotifier {
+public class MainActivity extends AppCompatActivity implements MonitorNotifier, RangeNotifier {
     /**
      * UI elements
       */
@@ -82,6 +86,10 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
      * Desired region. Detect beacons if matching characteristics of this region
      */
     Region region;
+    /**
+     * List of beacons
+     */
+    ArrayList<Beacon> beaconList;
 
 
     /**
@@ -163,7 +171,42 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
         }); // setOnClickListener
     } // onCreate
 
+    @Override
+    public void didEnterRegion(Region region) {
+        Log.d("Region callback", "did enter region");
+        insideRegion = true;
+
+       // clear list of seen beacons
+        beaconList.clear();
+
+        // start ranging
+        beaconManager.startRangingBeacons(region);
+    }
+
+    private void sendNotification() {
+        Toast.makeText(MainActivity.this, "Region entered", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void didExitRegion(Region region) {
+        // clear list
+        beaconList.clear();
+        // stop ranging
+        beaconManager.stopRangingBeacons(region);
+    }
+
+    @Override
+    public void didDetermineStateForRegion(int state, Region region) {
+
+    }
+
     private void setupBeaconManagement() {
+        // Uncomment this to run simulated beacons
+        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
+        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
+
+        beaconList = new ArrayList<>();
+
         // set up beaconManager
         beaconManager = BeaconManager.getInstanceForApplication(this);
         beaconManager.getBeaconParsers().clear();
@@ -176,22 +219,17 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
 
 
         // sets verbose logging on
-        BeaconManager.setDebug(true);
+//        BeaconManager.setDebug(true);
 
-        // Set up a Live Data observer so this Activity can get monitoring callbacks
-        // observer will be called each time the monitored regionState changes (inside vs. outside region)
-        beaconManager.getRegionViewModel(region).getRegionState().observe(this, new Observer<Integer>() {
-            @Override
-            public void onChanged(Integer integer) {
-                Log.d("beacon observer", "regionState change");
-            }
-        });
-        beaconManager.startRangingBeacons(region);
+        beaconManager.addMonitorNotifier(this);
+        for (Region region: beaconManager.getMonitoredRegions()) {
+            beaconManager.stopMonitoring(region);
+        }
+
+        beaconManager.startMonitoring(region);
+        beaconManager.addRangeNotifier(this);
 
 
-        // If you wish to test beacon detection in the Android Emulator, you can use code like this:
-        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
-        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
 
     }
 
@@ -210,46 +248,50 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
         // TODO: connect to the non-aliased url
         url = "http://10.0.2.2";
 
-        stringRequest = new StringRequest(Request.Method.PUT, url,
-                (response) -> {
-                    System.out.println(response);
-                    serverTV.setText(response.toString());
-                },
-                (error) -> {
-                    System.out.println(error);
-                    serverTV.setText(error.toString());
+        // TODO: fix this loop so it does send all beacons
+        for (Beacon b: beaconList) {
+            stringRequest = new StringRequest(Request.Method.PUT, url,
+                    (response) -> {
+                        System.out.println(response);
+                        serverTV.setText(response.toString());
+                    },
+                    (error) -> {
+                        System.out.println(error);
+                        serverTV.setText(error.toString());
+                    }
+            ) {
+                @Override
+                public Map<String, String> getHeaders()
+                {
+                    Map<String, String> headers = new HashMap<String, String>();
+                    headers.put("Content-Type", "application/json");
+                    //or try with this:
+                    //headers.put("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+                    // or content-type text
+                    return headers;
                 }
-        ) {
-            @Override
-            public Map<String, String> getHeaders()
-            {
-                Map<String, String> headers = new HashMap<String, String>();
-                headers.put("Content-Type", "application/json");
-                //or try with this:
-                //headers.put("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-                // or content-type text
-                return headers;
-            }
 
-            @Override
-            protected Map<String, String> getParams() {
-                Date currentTime = Calendar.getInstance().getTime();
+                @Override
+                protected Map<String, String> getParams() {
+                    Date currentTime = Calendar.getInstance().getTime();
 
-                Map<String, String> params = new HashMap<String, String>();
-
-                params.put("key", "9-9"); // TODO: actually construct this with real beacon data. maj-min
-                params.put("val", String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()) + ", " + currentTime.toString());
-                return params;
-            }
-        };
+                    Map<String, String> params = new HashMap<String, String>();
+                    // resulting format is: key=someKey&val=someVal&
+                    params.put("key", b.getId2().toString() + "-" + b.getId3().toString());
+                    params.put("val", String.valueOf(location.getLatitude()) + ", " + String.valueOf(location.getLongitude()) + ", " + currentTime.toString());
+                    return params;
+                }
+            };
+            queue.add(stringRequest);
+        }
 
         // TODO: remove debug variables
-        byte[] bodyBytes = stringRequest.getBody();
-        String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8); // for UTF-8 encoding
-        Map<String, String> headers = stringRequest.getHeaders();
-        String headersStr = headers.toString();
+//        byte[] bodyBytes = stringRequest.getBody();
+//        String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8); // for UTF-8 encoding
+//        Map<String, String> headers = stringRequest.getHeaders();
+//        String headersStr = headers.toString();
 
-        queue.add(stringRequest);
+
 
         // display toast
         Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
@@ -300,30 +342,13 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier {
     }
 
     @Override
-    public void didEnterRegion(Region region) {
-        Log.d("Region callback", "did enter region");
-
-//        if (region)
-//        // clear list of seen beacons
-//        insideRegion = true;
-//        sendNotification();
-        // start ranging
-    }
-
-    private void sendNotification() {
-        Toast.makeText(MainActivity.this, "Region entered", Toast.LENGTH_SHORT).show();
-    }
-
-    @Override
-    public void didExitRegion(Region region) {
-//        beaconManager.stopRangingBeaconsInRegion(region);
-        // clear list
-        // stop ranging
-
-    }
-
-    @Override
-    public void didDetermineStateForRegion(int state, Region region) {
-
+    public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
+        for (Beacon b : beacons) {
+            if ( !(beaconList.contains(b)) ) {
+                beaconList.add(b);
+            }
+        }
+        for (Beacon b : beaconList)
+            Log.d("BeaconList", b.getId1() + " " + b.getId2() + " " + b.getId3());
     }
 }
