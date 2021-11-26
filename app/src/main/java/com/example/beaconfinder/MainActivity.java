@@ -214,8 +214,8 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
     private void setupBeaconManagement() {
         // Uncomment this to run simulated beacons
-        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
-        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
+//        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
+//        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
 
         beaconList = new ArrayList<>();
 
