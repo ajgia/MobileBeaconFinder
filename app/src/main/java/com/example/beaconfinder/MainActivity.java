@@ -62,14 +62,6 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
     TextView locationTV;
 
     /**
-     * Android location manager. Unused in favor of Fused Location Provider Client
-      */
-    LocationManager locationManager;
-    /**
-     * A stored location
-      */
-    Location location;
-    /**
      * Google's FusedLocationProviderClient. Used to get location
      * May need to specify it to use high accuracy provider
      */
@@ -187,6 +179,7 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
     public void didEnterRegion(Region region) {
         Log.d("Region callback", "did enter region");
         insideRegion = true;
+        sendNotification();
 
        // clear list of seen beacons
         beaconList.clear();
@@ -240,7 +233,16 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         beaconManager.startMonitoring(region);
         beaconManager.addRangeNotifier(this);
+    }
 
+    @Override
+    public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
+        beaconList = (ArrayList<Beacon>) beacons;
+        beaconTV.setText("");
+        for (Beacon b : beaconList) {
+            beaconTV.append(b.getId2().toString() + "-" + b.getId3().toString() + "\n");
+            Log.d("BeaconList", b.getId1() + " " + b.getId2() + " " + b.getId3());
+        }
     }
 
     /**
@@ -255,8 +257,8 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
         queue = Volley.newRequestQueue(MainActivity.this);
 
         // 10.0.2.2 is the alias for localhost of the actual device (not the emulator)
-        // TODO: connect to the non-aliased url
-        url = "http://10.0.2.2";
+        // TODO: add configurable input for url
+        url = "http://10.65.17.120:80";
 
         stringRequest = new StringRequest(Request.Method.PUT, url,
                 (response) -> {
@@ -293,16 +295,6 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         queue.add(stringRequest);
 
-
-        // TODO: remove debug variables
-//        byte[] bodyBytes = stringRequest.getBody();
-//        String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8); // for UTF-8 encoding
-//        Map<String, String> headers = stringRequest.getHeaders();
-//        String headersStr = headers.toString();
-
-
-
-        // display toast
         Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
     }
 
@@ -347,16 +339,6 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
             } else {
                 Toast.makeText(MainActivity.this, "Fine Location Permission Denied", Toast.LENGTH_SHORT).show();
             }
-        }
-    }
-
-    @Override
-    public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
-        beaconList = (ArrayList<Beacon>) beacons;
-        beaconTV.setText("");
-        for (Beacon b : beaconList) {
-            beaconTV.append(b.getId2().toString() + "-" + b.getId3().toString() + "\n");
-            Log.d("BeaconList", b.getId1() + " " + b.getId2() + " " + b.getId3());
         }
     }
 }
