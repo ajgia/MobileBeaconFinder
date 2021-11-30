@@ -179,17 +179,12 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
     public void didEnterRegion(Region region) {
         Log.d("Region callback", "did enter region");
         insideRegion = true;
-        sendNotification();
 
        // clear list of seen beacons
         beaconList.clear();
 
         // start ranging
         beaconManager.startRangingBeacons(region);
-    }
-
-    private void sendNotification() {
-        Toast.makeText(MainActivity.this, "Region entered", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -257,8 +252,8 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
         queue = Volley.newRequestQueue(MainActivity.this);
 
         // 10.0.2.2 is the alias for localhost of the actual device (not the emulator)
-        // TODO: add configurable input for url
-        url = "http://10.65.17.120:80";
+        // TODO: add actual server when running
+        url = "http://10.0.2.2";
 
         stringRequest = new StringRequest(Request.Method.PUT, url,
                 (response) -> {
@@ -295,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         queue.add(stringRequest);
 
-        Toast.makeText(MainActivity.this, "Request sent", Toast.LENGTH_SHORT).show();
+        showToast("Request sent");
     }
 
     // Function to check and request permission.
@@ -307,7 +302,7 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
             ActivityCompat.requestPermissions(MainActivity.this, new String[] { permission }, requestCode);
         }
         else {
-            Toast.makeText(MainActivity.this, "Permission already granted", Toast.LENGTH_SHORT).show();
+            showToast("Permission already granted");
         }
     }
 
@@ -326,19 +321,24 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         if (requestCode == ACCESS_COARSE_LOCATION_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(MainActivity.this, "Coarse Location Permission Granted", Toast.LENGTH_SHORT) .show();
+                showToast("Coarse Location Permission Granted");
             }
             else {
-                Toast.makeText(MainActivity.this, "Coarse Location Permission Denied", Toast.LENGTH_SHORT) .show();
+                showToast("Coarse Location Permission Denied");
             }
         }
         else if (requestCode == ACCESS_FINE_LOCATION_PERMISSION_CODE) {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(MainActivity.this, "Fine Location Permission Granted", Toast.LENGTH_SHORT).show();
+                showToast("Fine Location Permission Granted");
             } else {
-                Toast.makeText(MainActivity.this, "Fine Location Permission Denied", Toast.LENGTH_SHORT).show();
+                showToast("Fine Location Permission Denied");
             }
         }
     }
+
+    public void showToast(final String toast) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, toast, Toast.LENGTH_SHORT).show());
+    }
+
 }
