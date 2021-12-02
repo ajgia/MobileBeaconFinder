@@ -30,7 +30,10 @@ import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.CancellationToken;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.OnTokenCanceledListener;
+import com.google.android.gms.tasks.Task;
 
 import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.BeaconManager;
@@ -114,36 +117,19 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         // A Location Manager, of a sorts
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-
-        // Set parameters and callback of location request
-        LocationRequest mLocationRequest = LocationRequest.create();
-        mLocationRequest.setInterval(INTERVAL);
-        mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        LocationCallback mLocationCallback = new LocationCallback() {
-
-            // Callback for getting locationResult
-            // On valid location, makes PUT request to server
-            // We are now entering callback hell
+        CancellationToken cancellationToken = new CancellationToken() {
             @Override
-            public void onLocationResult(LocationResult locationResult) {
-                if (locationResult == null) {
-                    return;
-                }
-                for (Location location : locationResult.getLocations()) {
-                    if (location != null) {
-                        String locationDisplay = location.getLatitude() + ", " + location.getLongitude();
-                        locationTV.setText(locationDisplay);
-                        try  {
-                            sendRequestPerBeacon(location);
-                        }
-                        catch (Exception e) {
-                            Log.e("PUT", e.toString());
-                        }
-                    }
-                }
+            public boolean isCancellationRequested() {
+                return false;
+            }
+
+            @NonNull
+            @Override
+            public CancellationToken onCanceledRequested(@NonNull OnTokenCanceledListener onTokenCanceledListener) {
+                return null;
             }
         };
+        fusedLocationClient.getCurrentLocation(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY, cancellationToken);
 
         beaconTV = findViewById(R.id.beaconTV);
         serverTV = findViewById(R.id.serverTV);
@@ -156,7 +142,28 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
             @Override
             public void onClick(View v) {
                 try {
-                    fusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null);
+                        Task<Location> taskLoc =  fusedLocationClient.getLastLocation();
+                        taskLoc.addOnSuccessListener(new OnSuccessListener<Location>() {
+
+                            @Override
+                            public void onSuccess(Location location) {
+                                if (location == null) {
+                                    return;
+                                }
+                                else {
+                                    String locationDisplay = location.getLatitude() + ", " + location.getLongitude();
+                                    locationTV.setText(locationDisplay);
+                                    try  {
+                                        sendRequestPerBeacon(location);
+                                    }
+                                    catch (Exception e) {
+                                        Log.e("PUT", e.toString());
+                                    }
+                                }
+                            }
+
+                        });
+
                 }
                 catch (SecurityException e) {
                     System.out.println("security exception");
@@ -202,8 +209,8 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
     private void setupBeaconManagement() {
         // Uncomment this to run simulated beacons
-//        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
-//        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
+        BeaconManager.setBeaconSimulator(new TimedBeaconSimulator());
+        ((TimedBeaconSimulator) BeaconManager.getBeaconSimulator()).createTimedSimulatedBeacons();
 
         beaconList = new ArrayList<>();
 
@@ -253,7 +260,7 @@ public class MainActivity extends AppCompatActivity implements MonitorNotifier, 
 
         // 10.0.2.2 is the alias for localhost of the actual device (not the emulator)
         // TODO: add actual server when running
-        url = "http://10.0.2.2";
+        url = "10.0.2.2";
 
         stringRequest = new StringRequest(Request.Method.PUT, url,
                 (response) -> {
